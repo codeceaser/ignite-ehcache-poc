@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ignite-user-service-ingress
+spec:
+  tls:
+    - hosts:
+      - ignite-user-service.local
+      secretName: my-secret-tls
+  rules:
+    - host: ignite-user-service.local
+      http:
+        paths:
+          - path: /ignite_user_service
+            pathType: Prefix
+            backend:
+              service:
+                name: ignite-user-service
+                port:
+                  number: 80

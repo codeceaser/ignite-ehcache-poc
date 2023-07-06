@@ -1,0 +1,50 @@
+kubectl delete configmap trust-store-config
+kubectl delete configmap key-store-config
+kubectl delete configmap ignite-config
+
+
+kubectl create configmap trust-store-config --from-file=truststore.jks -n default
+kubectl create configmap key-store-config --from-file=keystore.jks -n default
+kubectl create configmap ignite-config --from-file=node-configuration.xml -n default
+kubectl create configmap ignite-log-config --from-file=ignite-log4j.xml -n default
+
+kubectl create configmap key-store-config --from-file=keystore.jks=keystore.jks
+kubectl create configmap trust-store-config --from-file=truststore.jks=keystore.jks
+
+kubectl create secret generic key-store-secret --from-file=keystore.jks=./keystore.jks
+kubectl create secret generic trust-store-secret --from-file=truststore.jks=./truststore.jks
+
+kubectl get secret key-store-secret -o jsonpath="{.data.keystore\.jks}" | base64 --decode > keystore1.jks
+kubectl get secret trust-store-secret -o jsonpath="{.data.truststore\.jks}" | base64 --decode > truststore1.jks
+
+
+
+keytool -genkeypair -alias ignite_ssl_conf -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.jks -validity 3650 -storepass changeit -keypass changeit
+keytool -exportcert -alias ignite_ssl_conf -keystore keystore.jks -rfc -file cert.cer -storepass changeit
+keytool -importcert -alias ignite_ssl_conf -keystore truststore.jks -file cert.cer -storepass changeit -noprompt
+
+keytool -genkeypair -alias user_service_ssl_conf -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore user_service_keystore.jks -validity 3650 -storepass changeit -keypass changeit
+keytool -exportcert -alias user_service_ssl_conf -keystore user_service_keystore.jks -rfc -file user_service_cert.cer -storepass changeit
+keytool -importcert -alias user_service_ssl_conf -keystore user_service_truststore.jks -file user_service_cert.cer -storepass changeit -noprompt
+keytool -import -trustcacerts -file ignite_cert.cer -alias ignite_server -keystore user_service_truststore.jks -storepass changeit
+
+keytool -importcert -alias ignite_ssl_conf -keystore truststore.jks -file user_service_cert.cer -storepass changeit -noprompt
+
+kubectl create secret generic user-service-key-store-secret --from-file=keystore.jks=./user_service_keystore.jks
+kubectl create secret generic user-service-trust-store-secret --from-file=truststore.jks=./user_service_truststore.jks
+
+openssl x509 -outform der -in apiserver.crt -out apiserver.cer
+keytool -import -trustcacerts -file apiserver.cer -alias apiserver -keystore truststore.jks -storepass changeit
+keytool -list -keystore truststore.jks -storepass changeit
+minikube logs | grep -i 'ssl\|tls\|handshake'
+
+
+kubectl exec -it <pod-name> -- curl -k https://kubernetes.default.svc.cluster.local
+
+------
+
+Every time I rebuild the user-service image, I need to delete the old pod and create a new one.
+Also I have to restart the ignite cluster to make it work!
+
+
+

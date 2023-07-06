@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service-cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ignite
+      service: user-service
+  template:
+    metadata:
+      labels:
+        app: ignite
+        service: user-service
+    spec:
+      containers:
+      - name: ignite-user-service
+        image: priyangd/ignite-user-service:latest
+        ports:
+          - containerPort:
+              8080
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /ignite_user_service/
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ignite_user_service/
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        volumeMounts:
+          - mountPath: /etc/truststore/user_service_truststore.jks
+            name: user-service-trust-store-vol
+            subPath: truststore.jks
+          - mountPath: /etc/keystore/user_service_keystore.jks
+            name: user-service-key-store-vol
+            subPath: keystore.jks
+
+
+      volumes:
+        - name: user-service-trust-store-vol
+          secret:
+            secretName: user-service-trust-store-secret
+        - name: user-service-key-store-vol
+          secret:
+            secretName: user-service-key-store-secret
